@@ -1,0 +1,177 @@
+---
+author: "Anish Bhurtyal"
+date: "2023-01-07"
+output:
+  pdf_document: default
+  html_document: default
+  always_allow_html: yes
+---
+
+
+
+
+```{r packages, echo = FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+# library(tidymodels)
+# library(gghighlight)
+library(knitr)
+library(dplyr)
+library(cluster) # clustering algorithms
+library(factoextra) # clustering algorithms & visualization
+library(readxl)
+library(ggplot2)
+library(caret)
+```
+
+#### Data and exploration
+
+
+### Data
+
+```{r}
+df <- read_excel("Datasets.xlsx", sheet = 1)
+df
+```
+
+
+### Missing values
+
+```{r message=FALSE, warning=FALSE}
+sum(is.na(df))
+```
+
+
+### Duplicates
+```{r}
+proportion <- df %>%
+  group_by(Class) %>%
+  summarize(count = n())
+
+proportion
+```
+
+#### Visaulizing Proportions
+
+```{r}
+
+pct <- round(proportion$count/sum(proportion$count)*100)
+
+ggplot(proportion, aes(x = "", y = count, fill = Class)) +
+  geom_bar(width = 1, stat = "identity") +
+  geom_text(aes(label = paste0(pct, "%")), position = position_stack(vjust=0.5)) +
+  coord_polar("y", start = 0) +
+  labs(x = NULL, y = NULL,title = "Proportion by Group")+
+  theme_void()
+```
+
+
+```{r warning=FALSE, fig.asp = 0.25, fig.width= 7}
+df %>%
+  ggplot( aes(x = AREA, y=Class)) +
+    geom_boxplot() +
+    labs(
+        title = "The Distribution of AREA",
+        x = "AREA"
+    )
+```
+
+```{r warning=FALSE, fig.asp = 0.25, fig.width= 7}
+df %>%
+  ggplot( aes(x = PERIMETER, y=Class)) +
+    geom_boxplot() +
+    labs(
+        title = "The Distribution of PERIMETER",
+        x = "PERIMETER"
+    )
+```
+
+
+#### Modeling
+
+```{r}
+
+
+df <- df %>%
+  mutate(new_column = case_when(Class == "BERHI" ~ 1,
+                                Class == "DEGLET" ~ 2,
+                                Class == "DOKOL" ~ 3,
+                                Class == "IRAQI" ~ 4,
+                                Class == "ROTANA" ~ 5,
+                                Class == "SAFAVI" ~ 6,
+                                Class == "SOGAY" ~ 7))
+
+df$new_column<- as.factor(df$new_column)
+is.factor(df$new_column)
+```
+
+### Train / test
+
+- Create an initial split
+
+```{r}
+dt <- sort(sample(nrow(df), nrow(df) * .7))
+train <- df[dt, ]
+test <- df[-dt, ]
+```
+
+#### Logistic-----------------------------------------------------------------------------------
+
+```{r}
+library(nnet)
+
+class_model <- multinom(new_column ~ . -Class, data = train)
+
+summary(class_model)
+
+```
+
+```{r}
+predictions <- predict(class_model, test)
+
+# confusion matrix
+confusion_matrix <- confusionMatrix(predictions, test$new_column)
+# print(confusion_matrix)
+
+# Overall accuracy
+accuracy <- confusion_matrix$overall[1]
+accuracy
+# 
+# # Recall for class 1
+# recall_class1 <- confusion_matrix$byClass[1]
+# recall_class1
+# 
+# # F1 score for class 2
+# f1_class2 <- confusion_matrix$byClass[14]
+# f1_class2
+
+```
+
+
+
+```{r}
+
+overalldata <- data.frame(actual= test$new_column, predicted = predict(class_model, test))
+#colSums(is.na(data2))
+```
+
+```{r}
+
+sum(overalldata$actual==overalldata$predicted)
+sum(overalldata$actual!=overalldata$predicted)
+
+equal_rows <- sum(overalldata$actual==overalldata$predicted)
+
+print(equal_rows)
+
+glimpse((overalldata))
+```
+
+```{r  out.width = "70%"}
+# 
+# ggplot(overalldata, aes(x = predicted, y = actual)) +
+#   geom_point() +
+#   geom_abline(intercept = 0, slope = 1) +
+#   labs(x='Transformed Predicted Overall Values', y='Transformed Actual Overall Values',
+#        title='Transformed Predicted vs. Transformed Actual Overall Values')
+
+```
